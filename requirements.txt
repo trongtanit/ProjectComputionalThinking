@@ -1,0 +1,25 @@
+1. Yêu cầu môi trường
+
+Python 3.9 trở lên 
+
+Kiểm tra:  python --version
+
+2. Danh sách thư viện cần cài
+
+Dự án gồm nhiều tầng, nhưng để chạy được toàn bộ pipeline offline chỉ cần cài các thư viện sau:
+
+requests
+pandas
+geopy
+numpy
+unidecode
+regex
+rapidfuzz
+tqdm
+scikit-learn
+python-Levenshtein
+
+3. Lệnh cài đặt nhanh
+
+Mở cmd và nhập: pip install requests pandas geopy numpy unidecode regex rapidfuzz tqdm scikit-learn python-Levenshtein 
+
