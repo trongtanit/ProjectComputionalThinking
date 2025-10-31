@@ -329,3 +329,40 @@ class Itinerary:
         it = cls(poi_sequence=poi_list.copy())
         it.compute_summary()
         return it
+    
+# =============================================================================
+# CLASS SỞ THÍCH NGƯỜI DÙNG (USER PREFERENCE)
+# =============================================================================
+
+@dataclass
+class UserPreference:
+    """
+    Lớp đại diện cho sở thích và bối cảnh của người dùng.
+    Dùng để lọc hoặc xếp hạng các địa điểm gợi ý phù hợp.
+    """
+
+    # --- THÔNG TIN NGƯỜI DÙNG ---
+    name: str = "Guest"                           # Tên người dùng
+    current_latitude: float = 10.7769             # Vĩ độ hiện tại (mặc định: TP.HCM)
+    current_longitude: float = 106.7009           # Kinh độ hiện tại
+    budget_vnd: float = 500_000                   # Ngân sách dự kiến (VNĐ)
+    available_time_minutes: int = 240             # Thời gian rảnh (phút)
+    preferred_vibes: Set[str] = field(default_factory=set)  # Các vibe yêu thích (VD: {"Chill", "Local"})
+    disliked_vibes: Set[str] = field(default_factory=set)   # Các vibe không thích
+
+    preferred_poi_types: Set[str] = field(default_factory=set)  # Loại địa điểm yêu thích (VD: {"Food_Dining", "Culture_History"})
+    disliked_poi_types: Set[str] = field(default_factory=set)   # Loại địa điểm không thích
+
+    preferred_time_blocks: Set[str] = field(default_factory=lambda: {"morning", "afternoon", "evening"})  
+    # Thời gian rảnh trong ngày
+
+    # --- TÙY CHỌN KHÁC ---
+    require_central_area: bool = False            # Có muốn ở khu trung tâm không?
+    max_distance_km: float = 10.0                 # Khoảng cách tối đa từ vị trí hiện tại (km)
+    min_rating: float = 3.5                       # Đánh giá tối thiểu của địa điểm
+    need_variety: bool = True                     # Có muốn đa dạng loại địa điểm không?
+
+    def __str__(self) -> str:
+        return (f"UserPreference(name={self.name}, budget={self.budget_vnd:,}₫, "
+                f"vibes={list(self.preferred_vibes)}, types={list(self.preferred_poi_types)}, "
+                f"time_blocks={list(self.preferred_time_blocks)})")
