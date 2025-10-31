@@ -1,332 +1,262 @@
-# dialog_manager.py - Conversational AI Version
-from typing import Dict, Any, Optional, List
-import datetime
+# src/core/dialog_manager.py
+import os
 import json
-import requests
+import re
+from typing import Any, Dict, List, Optional
 
-from recommender import recommend
+# Azure SDK (the style you requested)
+from azure.ai.inference import ChatCompletionsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
+from azure.core.credentials import AzureKeyCredential
 
-# ==================================================
-# CONVERSATIONAL AI with Ollama
-# ==================================================
-class ConversationalAI:
-    """AI hiểu ngữ cảnh hội thoại như ChatGPT"""
-    
-    def __init__(self, model="llama3.2:1b"):
-        self.api_url = "http://localhost:11434/api/generate"
-        self.model = model
-        self.conversation_history: List[str] = []
-        
-    def understand_intent(self, user_text: str, current_state: Dict) -> Dict:
-        """Hiểu ý định user trong ngữ cảnh hội thoại"""
-        
-        # Build conversation context
-        history = "\n".join(self.conversation_history[-6:])  # Last 3 turns
-        
-        prompt = f"""You are a helpful restaurant recommendation assistant in Vietnam.
+# DataManager (bạn đã tạo trước đó)
+from core.data_manager import DataManager
 
-CONVERSATION HISTORY:
-{history}
+# -------------------------
+# CONFIG
+# -------------------------
+ENDPOINT = "https://models.github.ai/inference"
+MODEL = "gpt-4o-mini"   # đổi nếu bạn có model khác được cấp quyền
+TOKEN = os.environ.get("GITHUB_TOKEN")
+if not TOKEN:
+    raise ValueError("❌ Chưa đặt biến môi trường GITHUB_TOKEN!")
 
-CURRENT STATE:
-- Location: {current_state.get('location') or 'not set'}
-- Food preference: {current_state.get('food_type') or 'not set'}
-- Atmosphere: {current_state.get('play_type') or 'not set'}
+client = ChatCompletionsClient(endpoint=ENDPOINT, credential=AzureKeyCredential(TOKEN))
 
-USER'S NEW MESSAGE: "{user_text}"
+# load dataset (DataManager sẽ in thông báo)
+DATA = DataManager("../data/travel_poi_data_ranked.csv")
 
-Analyze the user's intent and return JSON:
-{{
-  "action": "update_location" | "update_food" | "update_vibe" | "remove_constraint" | "search" | "clarify",
-  "location": "quận X" or null,
-  "food_type": "lẩu" | "nướng" | "cafe" | "hải sản" | "đồ hàn" | "buffet" | null,
-  "play_type": "chill" | "view đẹp" | "live music" | "bar" | "any" | null,
-  "remove_constraint": "play_type" | "food_type" | "location" | null,
-  "user_sentiment": "frustrated" | "satisfied" | "neutral" | "changing_mind"
-}}
-
-INTENT DETECTION RULES:
-- If user says "không quan tâm X nữa", "thôi X", "bỏ X đi" → action: "remove_constraint", remove_constraint: "play_type" or relevant field
-- If user says "chỉ cần ngon thôi", "gì cũng được" → play_type: "any" (accept any vibe)
-- If user is frustrated (no results) → be flexible, suggest alternatives
-- If user changes preference → update relevant field
-- Vietnamese: "không quan tâm view" means play_type: "any"
-
-Return ONLY valid JSON, no explanation."""
-
-        try:
-            payload = {
-                "model": self.model,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {
-                    "temperature": 0.2,
-                    "num_predict": 200
-                }
-            }
-            
-            response = requests.post(self.api_url, json=payload, timeout=20)
-            
-            if response.status_code == 200:
-                result = json.loads(response.json()["response"])
-                return result
-            else:
-                print(f"⚠️ AI error: {response.status_code}")
-                return {"action": "clarify"}
-                
-        except Exception as e:
-            print(f"⚠️ AI failed: {e}")
-            return {"action": "clarify"}
-    
-    def generate_response(self, state: Dict, results: List[Dict], no_results: bool = False) -> str:
-        """Generate natural response like ChatGPT"""
-        
-        if no_results:
-            prompt = f"""User is looking for {state.get('food_type')} restaurant with {state.get('play_type')} vibe in {state.get('location')}, but no results found.
-
-Generate a helpful, friendly response in Vietnamese that:
-1. Acknowledges the request
-2. Suggests relaxing ONE constraint (vibe, location, or food type)
-3. Asks what they prefer to change
-
-Keep it natural, conversational, under 2 sentences."""
-        else:
-            prompt = f"""Generate a brief, friendly introduction in Vietnamese for {len(results)} {state.get('food_type')} restaurants.
-
-Keep it under 1 sentence, natural tone."""
-        
-        try:
-            payload = {
-                "model": self.model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0.7}
-            }
-            
-            response = requests.post(self.api_url, json=payload, timeout=15)
-            if response.status_code == 200:
-                return response.json()["response"].strip()
-        except:
-            pass
-        
-        # Fallback
-        if no_results:
-            return "Hmm, mình không tìm thấy quán phù hợp. Bạn muốn thử đổi khu vực, món ăn, hoặc không gian không?"
-        return f"Mình tìm được {len(results)} quán {state.get('food_type')} cho bạn:"
-    
-    def add_to_history(self, role: str, message: str):
-        """Add message to conversation history"""
-        self.conversation_history.append(f"{role}: {message}")
-
-
-# ==================================================
-# SMART DIALOG MANAGER
-# ==================================================
-class DialogManager:
-    REQUIRED_SLOTS = ["location", "food_type", "play_type"]
-
-    def __init__(self, use_ai=True):
-        self.state: Dict[str, Any] = {
-            "location": None,
-            "food_type": None,
-            "play_type": None,
-            "budget_vnđ": None,
-        }
-        
-        self.use_ai = use_ai
-        self.ai = ConversationalAI() if use_ai else None
-        
-        if self.use_ai:
-            print("✅ Conversational AI mode (ChatGPT-like)")
-        else:
-            print("⚠️ Rule-based mode")
-
-    def _extract_with_rules_fallback(self, text: str):
-        """Fallback extraction"""
-        text_lower = text.lower()
-        
-        # Detect constraint removal
-        if any(phrase in text_lower for phrase in ["không quan tâm", "thôi", "bỏ", "gì cũng được", "chỉ cần ngon"]):
-            # User wants to remove play_type constraint
-            if "view" in text_lower or "không gian" in text_lower or "gì cũng được" in text_lower:
-                self.state["play_type"] = "any"
-                return
-        
-        # Location
-        districts = ["quận 1", "quận 2", "quận 3", "quận 7", "quận 10", 
-                    "bình thạnh", "gò vấp", "tân bình", "phú nhuận", "thủ đức"]
-        for d in districts:
-            if d in text_lower:
-                if not d.startswith("quận") and d != "thủ đức":
-                    d = "quận " + d
-                self.state["location"] = d
-                return
-        
-        # Food
-        foods = {"lẩu": "lẩu", "nướng": "nướng", "cafe": "cafe", "hải sản": "hải sản", 
-                "đồ hàn": "đồ hàn", "buffet": "buffet"}
-        for k, v in foods.items():
-            if k in text_lower:
-                self.state["food_type"] = v
-                return
-        
-        # Vibe
-        vibes = {"chill": "chill", "view": "view đẹp", "nhạc sống": "live music", "bar": "bar"}
-        for k, v in vibes.items():
-            if k in text_lower:
-                self.state["play_type"] = v
-                return
-
-    def process(self, user_text: str) -> str:
-        # Add to conversation history
-        if self.ai:
-            self.ai.add_to_history("User", user_text)
-        
-        # 1) Understand intent với AI
-        if self.use_ai:
-            intent = self.ai.understand_intent(user_text, self.state)
-            
-            # Handle actions
-            action = intent.get("action")
-            
-            if action == "remove_constraint":
-                constraint = intent.get("remove_constraint")
-                if constraint == "play_type":
-                    self.state["play_type"] = "any"
-                    print("🔄 Removed vibe constraint")
-            
-            # Update state from AI
-            if intent.get("location"):
-                self.state["location"] = intent["location"]
-            if intent.get("food_type"):
-                self.state["food_type"] = intent["food_type"]
-            if intent.get("play_type"):
-                if intent["play_type"] == "any":
-                    self.state["play_type"] = "any"
-                else:
-                    self.state["play_type"] = intent["play_type"]
-        else:
-            self._extract_with_rules_fallback(user_text)
-        
-        # Debug
-        print(f"🔍 State: location={self.state.get('location')}, "
-              f"food={self.state.get('food_type')}, "
-              f"vibe={self.state.get('play_type')}")
-        
-        # 2) Check missing slots
-        missing = self._missing_slot()
-        if missing:
-            question = self._ask_question(missing)
-            if self.ai:
-                self.ai.add_to_history("Bot", question)
-            return question
-        
-        # 3) Build search preference
-        pref = {
-            "intents_requested": {"Food_Dining", "Entertainment_Leisure"},
-            "budget_vnđ": self.state.get("budget_vnđ"),
-            "time_hhmm": f"{datetime.datetime.now().hour:02d}:{datetime.datetime.now().minute:02d}",
-            "max_results": 10
-        }
-        
-        # Add vibe constraint (nếu không phải "any")
-        if self.state["play_type"] != "any":
-            pref["vibes"] = {self.state["play_type"]}
-        
-        # Location
-        location_coords = {
-            "quận 1": (10.775658, 106.700424),
-            "quận 3": (10.784369, 106.688079),
-            "quận 7": (10.736772, 106.721987),
-            "quận bình thạnh": (10.8142, 106.7054),
-            "quận phú nhuận": (10.7992, 106.6803),
-        }
-        loc = self.state["location"]
-        pref["start_lat"], pref["start_lon"] = location_coords.get(loc, (10.776, 106.700))
-        
-        # 4) Search
-        results = recommend(pref)
-        
-        # Filter by food type manually
-        food_type = self.state["food_type"]
-        if food_type and results:
-            food_keywords = {
-                "lẩu": ["lẩu", "hot pot", "hotpot"],
-                "nướng": ["nướng", "bbq", "grill"],
-                "cafe": ["cafe", "coffee", "cà phê"],
-                "hải sản": ["seafood", "hải sản"],
-                "đồ hàn": ["korean", "hàn"],
-                "buffet": ["buffet"],
-            }
-            
-            keywords = food_keywords.get(food_type, [food_type])
-            filtered = []
-            
-            for r in results:
-                name_lower = r.get("name", "").lower()
-                cat_lower = r.get("category", "").lower()
-                
-                if any(kw in name_lower or kw in cat_lower for kw in keywords):
-                    filtered.append(r)
-            
-            results = filtered[:10]
-        
-        # 5) Generate response
-        if not results:
-            response = self.ai.generate_response(self.state, [], no_results=True) if self.ai else \
-                f"Không tìm thấy quán {food_type}. Bạn thử đổi khu vực hoặc món ăn?"
-            
-            if self.ai:
-                self.ai.add_to_history("Bot", response)
-            return response
-        
-        # Format results
-        intro = self.ai.generate_response(self.state, results) if self.ai else \
-            f"✨ Có {len(results)} quán {food_type}:"
-        
-        reply = intro + "\n\n"
-        for i, r in enumerate(results, 1):
-            reply += f"{i}. {r['name']}\n"
-            reply += f"   💰 {r['avg_cost']} VNĐ | 📍 {r.get('vibe', 'N/A')}\n"
-        
-        if self.ai:
-            self.ai.add_to_history("Bot", reply)
-        return reply
-
-    def _missing_slot(self) -> Optional[str]:
-        for slot in self.REQUIRED_SLOTS:
-            val = self.state.get(slot)
-            if not val or val == "any":
-                if slot == "play_type" and val == "any":
-                    continue  # "any" is valid for play_type
-                if not val:
-                    return slot
+# -------------------------
+# UTIL: cố gắng parse JSON từ LLM output
+# -------------------------
+def try_parse_json(text: str) -> Optional[Dict[str, Any]]:
+    if not text:
         return None
+    # loại bỏ markdown fences
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text, flags=re.IGNORECASE)
+    # Some LLMs prepend/explain — try to find first JSON {...}
+    m = re.search(r"(\{.*\})", text, flags=re.DOTALL)
+    if m:
+        candidate = m.group(1)
+    else:
+        candidate = text
+    # try loads
+    try:
+        return json.loads(candidate)
+    except Exception:
+        # try a relaxed transform: replace single quotes to double, null/none -> null
+        t2 = candidate.replace("'", '"')
+        t2 = re.sub(r"\bNone\b|\bnone\b", "null", t2)
+        t2 = re.sub(r"\bNone\b|\bNull\b", "null", t2)
+        try:
+            return json.loads(t2)
+        except Exception:
+            return None
 
-    def _ask_question(self, slot: str) -> str:
-        if slot == "location":
-            return "Bạn muốn tìm ở quận nào? (VD: quận 1, Bình Thạnh...)"
-        if slot == "food_type":
-            return "Bạn thích ăn gì? (VD: lẩu, nướng, hải sản, cafe, đồ Hàn...)"
-        if slot == "play_type":
-            return "Bạn thích không gian kiểu nào? (VD: chill, view đẹp, nhạc sống... hoặc 'gì cũng được')"
-        return "Bạn có thể nói rõ hơn không?"
+# -------------------------
+# UTIL: simple rule-based fallback extractor if JSON parse fails
+# (keeps system working even when LLM is noisy)
+# -------------------------
+def fallback_extract(user_text: str) -> Dict[str, Any]:
+    text = user_text.lower()
+    prefs = {
+        "food": [],
+        "entertainment": [],
+        "vibe": "",
+        "area": "",
+        "budget": 0
+    }
+    # food keywords rough heuristics (add more if needed)
+    food_keywords = ["hàn", "korean", "nhật", "sushi", "hải sản", "cơm gà", "bún", "phở", "cafe", "cà phê", "trà sữa", "pizza"]
+    for kw in food_keywords:
+        if kw in text:
+            prefs["food"].append(kw)
+    # entertainment
+    ent_keywords = ["vui chơi", "bar", "quán bia", "club", "công viên", "rạp", "bowling", "khu vui chơi", "cafe", "chill"]
+    for kw in ent_keywords:
+        if kw in text:
+            prefs["entertainment"].append(kw)
+    # vibe
+    for v in ["chill", "thư giãn", "sang trọng", "lãng mạn", "thân thiện", "năng động", "yên tĩnh"]:
+        if v in text:
+            prefs["vibe"] = v
+            break
+    # area (quận)
+    m_area = re.search(r"quận\s*(\d{1,2})", text)
+    if m_area:
+        prefs["area"] = f"quận {m_area.group(1)}"
+    # budget numeric like "300k", "300 nghìn", "3tr", "300000"
+    m_budget = re.search(r"(\d+(\.\d+)?)(\s*)(k|nghìn|tr|triệu|m|vnd)?", text)
+    if m_budget:
+        num = float(m_budget.group(1))
+        unit = (m_budget.group(4) or "").lower()
+        if unit in ["k", "nghìn"]:
+            prefs["budget"] = int(num * 1000)
+        elif unit in ["tr", "triệu", "m"]:
+            prefs["budget"] = int(num * 1_000_000)
+        elif unit in ["vnd", ""]:
+            prefs["budget"] = int(num)
+    return prefs
 
+# -------------------------
+# MAIN: gọi LLM, parse, fallback, tìm data, in kết quả
+# -------------------------
+def understand_and_suggest(user_input: str):
+    # 1) call LLM
+    system_msg = (
+        "You are a Vietnamese travel assistant for Ho Chi Minh City. "
+        "From user input, extract JSON with keys: "
+        "food (list of short strings), entertainment (list), area (string, e.g. 'quận 1'), "
+        "vibe (string), budget (integer VND or null). "
+        "Return only the JSON object and nothing else."
+    )
+    try:
+        response = client.complete(
+            messages=[
+                SystemMessage("You are a helpful AI travel assistant for Ho Chi Minh City."),
+                UserMessage(system_msg + "\nUser: " + user_input),
+            ],
+            model=MODEL
+        )
+        llm_text = response.choices[0].message.content
+    except Exception as e:
+        print(f"❌ LLM call failed: {e}")
+        llm_text = ""
+
+    # 2) parse LLM output
+    parsed = try_parse_json(llm_text)
+    if parsed is None:
+        # try a simpler parse: sometimes model returns plain keys like 'food: ...'
+        parsed = try_parse_json(user_input)  # unlikely but harmless
+
+    if parsed is None:
+        # fallback: use rule-based heuristic
+        print("⚠️ LLM output not parseable → dùng fallback rule-based extractor.")
+        prefs = fallback_extract(user_input)
+    else:
+        # Normalize parsed to expected fields; accept many key names
+        prefs = {
+            "food": [],
+            "entertainment": [],
+            "vibe": "",
+            "area": "",
+            "budget": 0
+        }
+        # possible keys to try
+        # food may be "food", "foods", "food_preferences", "food_preferences"
+        for k in ("food", "foods", "food_preferences", "food_preference", "dish"):
+            if k in parsed and parsed[k]:
+                if isinstance(parsed[k], list):
+                    prefs["food"] = [str(x).strip() for x in parsed[k] if x]
+                else:
+                    # comma split
+                    prefs["food"] = [s.strip() for s in re.split(r"[;,/]|và|,| and ", str(parsed[k])) if s.strip()]
+                break
+        # entertainment
+        for k in ("entertainment", "entertainment_preferences", "activities", "activity"):
+            if k in parsed and parsed[k]:
+                if isinstance(parsed[k], list):
+                    prefs["entertainment"] = [str(x).strip() for x in parsed[k] if x]
+                else:
+                    prefs["entertainment"] = [s.strip() for s in re.split(r"[;,/]|và|,| and ", str(parsed[k])) if s.strip()]
+                break
+        # vibe
+        for k in ("vibe", "mood", "atmosphere"):
+            if k in parsed and parsed[k]:
+                prefs["vibe"] = str(parsed[k]).strip()
+                break
+        # area
+        for k in ("area", "location", "place", "district"):
+            if k in parsed and parsed[k]:
+                prefs["area"] = str(parsed[k]).strip()
+                break
+        # budget
+        for k in ("budget", "budget_range", "price", "price_max"):
+            if k in parsed and parsed[k]:
+                try:
+                    prefs["budget"] = int(parsed[k] or 0)
+                except Exception:
+                    # try parse numeric with suffix
+                    btxt = str(parsed[k])
+                    m = re.search(r"(\d+(\.\d+)?)", btxt.replace(",", ""))
+                    if m:
+                        v = float(m.group(1))
+                        if "k" in btxt.lower():
+                            prefs["budget"] = int(v * 1000)
+                        elif "tr" in btxt.lower() or "triệu" in btxt.lower():
+                            prefs["budget"] = int(v * 1_000_000)
+                        else:
+                            prefs["budget"] = int(v)
+                break
+
+    # Ensure lists exist
+    prefs["food"] = prefs.get("food") or []
+    prefs["entertainment"] = prefs.get("entertainment") or []
+    # Print what we have
+    print("\n💬 Parsed preferences (final):")
+    print(json.dumps(prefs, ensure_ascii=False, indent=2))
+
+    # 3) Use DataManager to find places
+    # merge food + entertainment keywords for searching
+    search_food = ", ".join(prefs["food"]) if prefs["food"] else None
+    search_ent = ", ".join(prefs["entertainment"]) if prefs["entertainment"] else None
+
+    results = DATA.find_places(
+        food=search_food,
+        vibe=prefs.get("vibe"),
+        area=prefs.get("area"),
+        budget=prefs.get("budget", 0),
+        limit=8
+    )
+
+    if results is None or results.empty:
+        # try relaxed search: search by any keyword across dataset
+        print("\n🔎 Không có kết quả chính xác — thử mở rộng tìm kiếm theo từ khóa...")
+        keywords = prefs["food"] + prefs["entertainment"]
+        # if still empty, try searching name/category for each keyword
+        agg = DATA.df.copy()
+        if keywords:
+            pattern = "|".join([re.escape(k.lower()) for k in keywords])
+            agg_cols = []
+            for c in ["name", "category_detail", "poi_type", "tags", "description", "address"]:
+                if c in agg.columns:
+                    agg_cols.append(c)
+            if agg_cols:
+                agg["__joint"] = agg[agg_cols].astype(str).agg(" | ".join, axis=1).str.lower()
+                matched = agg[agg["__joint"].str.contains(pattern, na=False)]
+                # apply budget if possible
+                if prefs.get("budget") and "avg_cost" in matched.columns:
+                    matched = matched[matched["avg_cost"] <= prefs["budget"] * 1.2]
+                if not matched.empty:
+                    matched = matched.sort_values(by=["recommendation_score"] if "recommendation_score" in matched.columns else [], ascending=False)
+                    print("\n✨ Gợi ý (relaxed):")
+                    print(matched.head(8)[["name", "category_detail", "avg_cost", "simulated_rating"]].to_string(index=False))
+                    return
+        print("\n😢 Không tìm thấy địa điểm phù hợp (even relaxed). Thử nói rõ hơn (ví dụ: 'quán cơm gà quận 3 tầm 150k').")
+        return
+
+    # 4) Print results (sorted by DataManager)
+    print("\n✨ Gợi ý từ dữ liệu (từ gần nhất / điểm đề xuất):")
+    # DataManager.find_places returns a DataFrame; print useful cols
+    cols_to_show = [c for c in ["name", "category_detail", "avg_cost", "simulated_rating", "vibe", "address"] if c in results.columns]
+    print(results[cols_to_show].to_string(index=False))
+
+# -------------------------
+# CLI loop
+# -------------------------
+def main():
+    print("=== 💬 SMART TRAVEL ASSISTANT (HCM) ===")
+    print("Gõ 'exit' để thoát.\n")
+    while True:
+        text = input("Bạn: ").strip()
+        if not text:
+            continue
+        if text.lower() in ("exit", "quit", "bye"):
+            print("Tạm biệt!")
+            break
+        understand_and_suggest(text)
 
 if __name__ == "__main__":
-    print("=" * 70)
-    print("🤖 CONVERSATIONAL AI CHATBOT (ChatGPT-like)")
-    print("=" * 70)
-    print("\n⚠️  Lưu ý: Chạy 'ollama serve' trước!")
-    print("💡 Tip: Nói tự nhiên như chat bình thường\n")
-    
-    dm = DialogManager(use_ai=True)
-    print("Gõ 'exit' để thoát\n")
-    
-    while True:
-        msg = input("Bạn: ")
-        if msg.strip().lower() == "exit":
-            break
-        reply = dm.process(msg)
-        print(f"\n🤖 Bot: {reply}\n")
+    main()
