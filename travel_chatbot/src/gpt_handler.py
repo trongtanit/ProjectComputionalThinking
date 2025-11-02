@@ -1,9 +1,6 @@
-import os
-import json
-import re
+import os, json, re
 from openai import OpenAI
 
-# 🧠 Hàm phân tích yêu cầu người dùng
 def interpret_request(message):
     token = os.getenv("GITHUB_TOKEN")
     if not token:
@@ -18,16 +15,18 @@ def interpret_request(message):
     Người dùng: "{message}"
     Hãy trả JSON dạng:
     {{
-        "category": "ẩm thực | du lịch | nghỉ dưỡng | vui chơi | khác",
-        "budget": số tiền (ước lượng),
-        "time": "số ngày hoặc giờ"
+        "categories": ["ẩm thực", "vui chơi", "du lịch", "nghỉ dưỡng", "mua sắm", ...],
+        "budget": số tiền (nếu có),
+        "time": "thời gian (số giờ hoặc ngày)",
+        "location": "tên địa điểm (nếu có)"
     }}
+    Nếu người dùng nói nhiều hoạt động (vd: "đi chơi rồi ăn trưa"), hãy thêm tất cả các loại vào "categories".
     """
 
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "Bạn là AI phân tích yêu cầu du lịch của người dùng."},
+            {"role": "system", "content": "Bạn là AI giúp hiểu yêu cầu du lịch và ẩm thực của người Việt."},
             {"role": "user", "content": prompt}
         ],
         temperature=0.2
@@ -38,7 +37,11 @@ def interpret_request(message):
 
     try:
         parsed = json.loads(result)
-    except json.JSONDecodeError:
-        parsed = {"category": "khác", "budget": 0, "time": "unknown"}
+    except:
+        parsed = {"categories": ["khác"], "budget": 0, "time": "unknown", "location": ""}
+
+    # ✅ Đảm bảo luôn có dạng list
+    if isinstance(parsed.get("categories"), str):
+        parsed["categories"] = [parsed["categories"]]
 
     return parsed

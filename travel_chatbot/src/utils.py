@@ -1,7 +1,9 @@
+# src/utils.py
 category_map = {
-    "ẩm thực": ["food", "restaurant", "dining", "eat"],
-    "vui chơi": ["entertainment", "fun", "game", "park"],
-    "mua sắm": ["shopping", "shop", "market"],
-    "du lịch": ["tourism", "travel", "sightseeing", "museum"],
-    "nghỉ dưỡng": ["resort", "hotel", "relax", "spa"]
+    "ẩm thực": ["food", "eat", "restaurant", "dining", "drink", "coffee", "cafe", "beverage"],
+    "vui chơi": ["fun", "entertainment", "game", "bar", "night", "karaoke", "cinema", "park", "play"],
+    "du lịch": ["tour", "travel", "sightseeing", "visit", "attraction", "temple", "museum"],
+    "nghỉ dưỡng": ["resort", "spa", "hotel", "homestay", "stay", "relax"],
+    "mua sắm": ["shopping", "market", "store", "mall", "boutique"],
+    "khác": []
 }
