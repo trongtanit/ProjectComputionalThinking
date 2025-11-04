@@ -2,6 +2,7 @@ import os
 from src.data_loader import load_data
 from src.gpt_handler import interpret_request
 from src.recommender import suggest_places
+from src.scheduler import build_day_schedule
 
 # 🔑 Lấy token GitHub
 token = os.getenv("GITHUB_TOKEN")
@@ -53,3 +54,11 @@ while True:
                 except Exception as e:
                     print(f"⚠️ Lỗi khi đọc dòng: {e}")
             print("\n" + "-" * 50)
+
+    # Sau khi in xong danh mục
+    if info.get("time_plan"):
+        print("\n🗓️ Lịch trình gợi ý cho 1 ngày:")
+        day_plan = build_day_schedule(data, info, msg)
+        for p in day_plan:
+            print("-", p)
+
