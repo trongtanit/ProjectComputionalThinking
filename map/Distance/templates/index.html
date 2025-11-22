@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Distance App</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    input { padding: 8px; margin: 5px 0; width: 320px; }
+    button { padding: 8px 12px; margin-right: 8px; }
+    #map { width:100%; height:600px; margin-top:20px; }
+  </style>
+</head>
+<body>
+  <h2>Distance & Routing</h2>
+
+  <div>
+    <label>Địa chỉ A (hoặc lat,lon):</label><br>
+    <input id="start" placeholder="Địa chỉ A">
+  </div>
+  <div>
+    <label>Địa chỉ B (hoặc lat,lon):</label><br>
+    <input id="end" placeholder="Địa chỉ B">
+  </div>
+
+  <div style="margin-top:10px;">
+    <button id="calcBtn">Tính khoảng cách A ↔ B</button>
+    <button id="fromHereBtn">Tính từ vị trí hiện tại → B</button>
+    <button id="btn-route">Tìm đường từ A → B </button>
+    <button id="btn-route-here">Tìm đường từ vị trí hiện tại → B </button>
+  </div>
+
+  <div id="results"></div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script src="/static/js/map_init.js"></script>
+  <script src="/static/js/distance.js"></script>
+  <script src="/static/js/routing.js"></script> 
+  <script src="/static/js/ui_events.js"></script> 
+  
+</body>
+</html>
