@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tìm Nhà Hàng - TP.HCM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border: 4px solid #fed7aa;
+            border-top: 4px solid #f97316;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-orange-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
+                    <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">Tìm Nhà Hàng</h1>
+                    <p class="text-sm text-gray-500">Hệ thống gợi ý thông minh - TP.HCM</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Search Box -->
+        <section class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div class="flex flex-col sm:flex-row gap-3 mb-4">
+                <div class="flex-1 relative">
+                    <svg class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <input
+                        type="text"
+                        id="searchQuery"
+                        placeholder="Tìm món ăn hoặc loại nhà hàng (VD: phở, bún bò, cafe...)"
+                        class="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-400 focus:outline-none text-gray-700"
+                    />
+                </div>
+                <button
+                    id="searchBtn"
+                    class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white font-medium rounded-xl hover:from-orange-600 hover:to-red-600 transition-all shadow-md"
+                >
+                    Tìm kiếm
+                </button>
+            </div>
+
+            <!-- Advanced Filters -->
+            <details class="mt-4">
+                <summary class="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-800">
+                    Bộ lọc nâng cao
+                </summary>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                    <!-- District Filter -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Quận</label>
+                        <select id="districtFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-400 focus:outline-none text-gray-700">
+                            <option value="">Tất cả</option>
+                            <option value="Quan 1">Quận 1</option>
+                            <option value="Quan 2">Quận 2</option>
+                            <option value="Quan 3">Quận 3</option>
+                            <option value="Quan 5">Quận 5</option>
+                            <option value="Quan 7">Quận 7</option>
+                            <option value="Quan 10">Quận 10</option>
+                            <option value="Binh Thanh">Bình Thạnh</option>
+                            <option value="Phu Nhuan">Phú Nhuận</option>
+                            <option value="Tan Binh">Tân Bình</option>
+                            <option value="Go Vap">Gò Vấp</option>
+                        </select>
+                    </div>
+
+                    <!-- Price Filter -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Giá tối đa</label>
+                        <select id="priceFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-400 focus:outline-none text-gray-700">
+                            <option value="">Không giới hạn</option>
+                            <option value="50000">< 50,000 VND</option>
+                            <option value="100000">< 100,000 VND</option>
+                            <option value="200000">< 200,000 VND</option>
+                            <option value="500000">< 500,000 VND</option>
+                        </select>
+                    </div>
+
+                    <!-- Rating Filter -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Đánh giá tối thiểu</label>
+                        <select id="ratingFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-400 focus:outline-none text-gray-700">
+                            <option value="">Tất cả</option>
+                            <option value="3.5">3.5+ sao</option>
+                            <option value="4.0">4.0+ sao</option>
+                            <option value="4.5">4.5+ sao</option>
+                        </select>
+                    </div>
+
+                    <!-- Category Filter -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Loại hình</label>
+                        <select id="categoryFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-400 focus:outline-none text-gray-700">
+                            <option value="">Tất cả</option>
+                            <option value="Am thuc Viet">Ẩm thực Việt</option>
+                            <option value="Am thuc Han">Ẩm thực Hàn</option>
+                            <option value="Am thuc Nhat">Ẩm thực Nhật</option>
+                            <option value="Cafe">Cafe</option>
+                            <option value="Lau">Lẩu</option>
+                            <option value="BBQ">BBQ</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+        </section>
+
+        <!-- Loading -->
+        <div id="loading" class="hidden text-center py-12">
+            <div class="loader mx-auto"></div>
+            <p class="mt-4 text-gray-600 font-medium">Đang xử lý yêu cầu...</p>
+            <p class="mt-2 text-sm text-gray-500">Tìm kiếm và phân tích dữ liệu</p>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="hidden space-y-6 fade-in">
+            <!-- Stats Bar -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                <div class="flex items-center justify-between text-sm">
+                    <div>
+                        <span class="font-semibold text-gray-700">Kết quả:</span>
+                        <span id="resultCount" class="ml-2 text-orange-600 font-bold">0</span>
+                        <span class="text-gray-500 ml-1">nhà hàng</span>
+                    </div>
+                    <div class="text-gray-500">
+                        <span>Thời gian xử lý:</span>
+                        <span id="processingTime" class="ml-1 font-semibold text-gray-700">0s</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Answer -->
+            <section class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Gợi ý của hệ thống</h3>
+                <div id="answerText" class="text-base text-gray-700 leading-relaxed"></div>
+            </section>
+
+            <!-- Sources -->
+            <section id="sourcesSection" class="hidden">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Danh sách nhà hàng</h3>
+                <div id="sourcesList" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
+            </section>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-16">
+            <div class="w-20 h-20 bg-gradient-to-br from-orange-100 to-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-10 h-10 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">Bắt đầu tìm kiếm</h3>
+            <p class="text-gray-600 mb-4">Nhập món ăn hoặc loại nhà hàng bạn muốn tìm</p>
+            <div class="flex flex-wrap justify-center gap-2 mt-6">
+                <button onclick="quickSearch('phở')" class="px-4 py-2 bg-gray-100 hover:bg-orange-100 rounded-lg text-sm font-medium text-gray-700 transition-colors">Phở</button>
+                <button onclick="quickSearch('bún bò')" class="px-4 py-2 bg-gray-100 hover:bg-orange-100 rounded-lg text-sm font-medium text-gray-700 transition-colors">Bún bò</button>
+                <button onclick="quickSearch('cafe')" class="px-4 py-2 bg-gray-100 hover:bg-orange-100 rounded-lg text-sm font-medium text-gray-700 transition-colors">Cafe</button>
+                <button onclick="quickSearch('lẩu')" class="px-4 py-2 bg-gray-100 hover:bg-orange-100 rounded-lg text-sm font-medium text-gray-700 transition-colors">Lẩu</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-100 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-gray-500">
+            Hệ thống gợi ý nhà hàng thông minh - TP. Hồ Chí Minh
+        </div>
+    </footer>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000/api/search';
+
+        const elements = {
+            searchBtn: document.getElementById('searchBtn'),
+            searchQuery: document.getElementById('searchQuery'),
+            loading: document.getElementById('loading'),
+            results: document.getElementById('results'),
+            emptyState: document.getElementById('emptyState'),
+            answerText: document.getElementById('answerText'),
+            sourcesSection: document.getElementById('sourcesSection'),
+            sourcesList: document.getElementById('sourcesList'),
+            resultCount: document.getElementById('resultCount'),
+            processingTime: document.getElementById('processingTime'),
+            districtFilter: document.getElementById('districtFilter'),
+            priceFilter: document.getElementById('priceFilter'),
+            ratingFilter: document.getElementById('ratingFilter'),
+            categoryFilter: document.getElementById('categoryFilter')
+        };
+
+        async function handleSearch() {
+            const query = elements.searchQuery.value.trim();
+            if (!query) {
+                alert('Vui lòng nhập từ khóa tìm kiếm');
+                return;
+            }
+
+            // Show loading
+            elements.emptyState.classList.add('hidden');
+            elements.results.classList.add('hidden');
+            elements.loading.classList.remove('hidden');
+
+            // Build request body with filters
+            const requestBody = {
+                query: query
+            };
+
+            if (elements.districtFilter.value) {
+                requestBody.district = elements.districtFilter.value;
+            }
+            if (elements.priceFilter.value) {
+                requestBody.maxPrice = parseInt(elements.priceFilter.value);
+            }
+            if (elements.ratingFilter.value) {
+                requestBody.minRating = parseFloat(elements.ratingFilter.value);
+            }
+            if (elements.categoryFilter.value) {
+                requestBody.category = elements.categoryFilter.value;
+            }
+
+            console.log('[CLIENT] Sending request:', requestBody);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('[CLIENT] Received response:', data);
+                displayResults(data);
+
+            } catch (error) {
+                console.error('[CLIENT] Error:', error);
+                elements.answerText.textContent = `Lỗi: ${error.message}. Vui lòng kiểm tra server đang chạy tại ${API_URL}`;
+                elements.results.classList.remove('hidden');
+                elements.sourcesSection.classList.add('hidden');
+            } finally {
+                elements.loading.classList.add('hidden');
+            }
+        }
+
+        function displayResults(data) {
+            const hasAnswer = data.answer && data.answer.trim().length > 0;
+            const hasSources = data.sources && data.sources.length > 0;
+            const isRejection = data.warning === 'llm_rejection';
+            
+            // If no answer at all, show empty state
+            if (!hasAnswer) {
+                elements.loading.classList.add('hidden');
+                elements.results.classList.add('hidden');
+                elements.emptyState.classList.remove('hidden');
+                console.log('[CLIENT] No answer received');
+                return;
+            }
+            
+            // Show results section
+            elements.results.classList.remove('hidden');
+            elements.emptyState.classList.add('hidden');
+            
+            // Update stats
+            elements.resultCount.textContent = hasSources ? data.sources.length : 0;
+            elements.processingTime.textContent = data.processing_time ? `${data.processing_time}s` : 'N/A';
+            
+            // Display answer (always show the answer from LLM)
+            elements.answerText.textContent = data.answer;
+            
+            // Show sources ONLY if NOT rejection and has sources
+            if (isRejection || !hasSources) {
+                elements.sourcesSection.classList.add('hidden');
+                console.log('[CLIENT] LLM rejected query - hiding restaurant list');
+            } else {
+                elements.sourcesSection.classList.remove('hidden');
+                elements.sourcesList.innerHTML = data.sources.map((source, index) => `
+                    <article class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all p-6 border border-gray-100">
+                        <div class="flex items-start justify-between mb-3 gap-3">
+                            <div class="flex items-center gap-2">
+                                <span class="flex items-center justify-center w-6 h-6 bg-orange-500 text-white text-xs font-bold rounded-full">
+                                    ${index + 1}
+                                </span>
+                                <h4 class="text-lg font-bold text-gray-800">${source.name}</h4>
+                            </div>
+                            <div class="flex items-center gap-1 bg-orange-100 px-2.5 py-1 rounded-lg flex-shrink-0">
+                                <svg class="w-4 h-4 text-orange-500 fill-current" viewBox="0 0 24 24">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                                <span class="text-sm font-semibold text-orange-700">${source.rating}</span>
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-sm text-gray-600">
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-400">Địa điểm:</span>
+                                <span class="font-medium">${source.district}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-400">Giá:</span>
+                                <span class="font-medium">${source.price_range}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-400">Loại hình:</span>
+                                <span class="font-medium">${source.category}</span>
+                            </div>
+                            ${source.specialties ? `
+                                <div class="mt-3 pt-3 border-t border-gray-100">
+                                    <p class="text-xs text-gray-500 font-medium mb-1">MÓN ĐẶC SẢN</p>
+                                    <p class="text-gray-600">${source.specialties}</p>
+                                </div>
+                            ` : ''}
+                            ${source.similarity_score !== undefined ? `
+                                <div class="mt-2 pt-2 border-t border-gray-100">
+                                    <div class="flex items-center justify-between text-xs">
+                                        <span class="text-gray-500">Độ phù hợp:</span>
+                                        <span class="font-semibold text-green-600">${(100 - source.similarity_score * 100).toFixed(1)}%</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </article>
+                `).join('');
+            }
+        }
+
+        function quickSearch(query) {
+            elements.searchQuery.value = query;
+            handleSearch();
+        }
+
+        // Event listeners
+        elements.searchBtn.addEventListener('click', handleSearch);
+        elements.searchQuery.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSearch();
+        });
+
+        // Log client initialization
+        console.log('[CLIENT] Restaurant search interface initialized');
+        console.log('[CLIENT] API endpoint:', API_URL);
+    </script>
+</body>
+</html>
